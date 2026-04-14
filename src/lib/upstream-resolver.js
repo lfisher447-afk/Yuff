@@ -32,7 +32,7 @@ async function resolveUpstreamAddress(hostname) {
         try { const dohAddress = await resolveViaDoh(hostname, recordType); if (dohAddress) return dohAddress; } 
         catch (error) { if (recordType === 'AAAA') console.warn(`DoH lookup failed for ${hostname}: ${error.message}`); }
     }
-    for (const resolver of [dns.resolve4, dns.resolve6]) {
+    for (const resolver of[dns.resolve4, dns.resolve6]) {
         try { const addresses = await resolver(hostname); if (addresses.length > 0) return addresses[0]; } 
         catch (error) { if (!['ENODATA', 'ENOTFOUND', 'EAI_AGAIN', 'ESERVFAIL', 'EREFUSED', 'ETIMEOUT'].includes(error.code)) throw error; }
     }
