@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Server-Side Proxy Browser</title>
+    <title>Yuff Proxy Browser</title>
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <!-- Top Browser Nav -->
     <div class="browser-header">
         <div class="tab-bar" id="tabBar">
             <button class="new-tab-btn" onclick="app.createTab()"><i class="fas fa-plus"></i></button>
@@ -17,20 +16,18 @@
             <button onclick="app.goBack()"><i class="fas fa-arrow-left"></i></button>
             <button onclick="app.goForward()"><i class="fas fa-arrow-right"></i></button>
             <button onclick="app.reloadTab()"><i class="fas fa-redo"></i></button>
-            <input type="text" id="globalUrlInput" placeholder="Enter URL...">
+            <input type="text" id="globalUrlInput" placeholder="Enter URL or Extractor link...">
             <button onclick="app.openSettings()"><i class="fas fa-cog"></i> Settings</button>
             <button onclick="app.toggleSidebar()"><i class="fas fa-robot"></i> AI</button>
         </div>
     </div>
 
-    <!-- Main Workspace -->
     <div class="workspace">
         <div class="tab-contents" id="tabContents"></div>
         
-        <!-- AI Sidebar -->
         <div class="ai-sidebar" id="aiSidebar">
             <div class="sidebar-header">
-                <h3>Nexus AI</h3>
+                <h3>Yuff AI</h3>
                 <button onclick="app.toggleSidebar()"><i class="fas fa-times"></i></button>
             </div>
             <div class="chat-history" id="chatHistory"></div>
@@ -47,27 +44,24 @@
             <h2>System Settings</h2>
             <div class="settings-grid">
                 <div class="setting-group">
-                    <label>Proxy Backend Engine</label>
+                    <label>Proxy Engine Routing</label>
                     <select id="setEngine">
-                        <option value="standard">Standard Node HTTP</option>
-                        <option value="scramjet">Scramjet Framework Support</option>
-                        <option value="libcurl">Libcurl Backend (Native)</option>
+                        <option value="standard">Server-Side: Node HTTP</option>
+                        <option value="libcurl">Server-Side: Libcurl (Spoofed)</option>
+                        <option value="scramjet">Client-Side: Scramjet WASM (Local)</option>
+                        <option value="baremux">Client-Side: Baremux + Epoxy</option>
                     </select>
                 </div>
                 <div class="setting-group">
-                    <label>Anti-Detection Spoofing</label>
+                    <label>Anti-Detection (Spoofing)</label>
                     <select id="setSpoof">
                         <option value="high">High (Rotate User-Agent & Headers)</option>
                         <option value="off">Off</option>
                     </select>
                 </div>
                 <div class="setting-group">
-                    <label>Custom Proxy Nodes (Comma Separated)</label>
-                    <input type="text" id="setNodes" placeholder="node1.pool.com, node2.pool.com">
-                </div>
-                <div class="setting-group">
-                    <label>Custom Elements to Select/Block (CSS Selectors)</label>
-                    <input type="text" id="setCustomElements" placeholder=".ad-banner, #popup">
+                    <label>Custom Elements (CSS Selectors to Block)</label>
+                    <input type="text" id="setCustomElements" placeholder=".ad-banner, #popup-modal">
                 </div>
                 <div class="setting-group">
                     <label>AI API URL</label>
@@ -82,17 +76,16 @@
         </div>
     </div>
 
-    <!-- Template for EACH Tab (Your EXACT Extractor UI) -->
+    <!-- Extractor Template per Tab -->
     <template id="tab-template">
         <div class="container extractor-ui">
             <div class="header">
                 <h1>Stream Iframe Extractor</h1>
                 <p>Educational tool for analyzing embedded video players</p>
             </div>
-            <!-- Legal Section -->
-            <div style="background: #ffffff; padding: 16px 18px; margin: 20px 0; border-radius: 12px; border: 2px solid #ff3b30;">
-                <h3 style="margin-top: 0; font-size: 17px; font-weight: 600; color: #ff3b30;">⚖️ Legal Terms & Acceptable Use</h3>
-                <p style="font-size: 14px; color: #1d1d1f;">By clicking "I Agree", you represent and warrant you own the content or have permission.</p>
+            <div style="background: #ffffff; padding: 16px; margin: 20px 0; border-radius: 12px; border: 2px solid #ff3b30;">
+                <h3 style="margin-top: 0; font-size: 17px; color: #ff3b30;">⚖️ Legal Terms & Acceptable Use</h3>
+                <p style="font-size: 14px; color: #1d1d1f;">By clicking "I Agree", you warrant you own the content or have permission.</p>
             </div>
             <div class="input-section">
                 <div class="input-group">
@@ -114,17 +107,20 @@
                     <label>Select Stream:</label>
                     <select class="streamSelect"></select>
                 </div>
-                <div class="streamUrlCard" style="display:none;"></div>
                 <div class="playerContainer player-container"></div>
-                <div class="info"><h3>Information</h3><ul class="infoList"></ul></div>
-                <div class="blockMonitor" style="display:none;">
-                    <h3 style="color:#1d1d1f">Blocked Threats: <span class="blockCount" style="color:red">0</span></h3>
+                <div class="blockMonitor" style="display:none; margin-top: 15px; padding: 15px; border: 1px solid #d2d2d7; border-radius: 8px;">
+                    <h3 style="color:#1d1d1f; margin-bottom: 10px;">Blocked Threats: <span class="blockCount" style="color:red">0</span></h3>
                     <div class="blockList"></div>
                 </div>
             </div>
         </div>
     </template>
 
+    <!-- Client-Side Engine Loaders -->
+    <script src="/baremux/index.js" defer></script>
+    <script src="/epoxy/index.js" defer></script>
+    <script src="/scram/scramjet.bundle.js" defer></script>
+    
     <script src="/app.js"></script>
 </body>
 </html>
