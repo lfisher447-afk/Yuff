@@ -1,15 +1,28 @@
+// --- CRITICAL POLYFILL FOR NODE 18/20 COMPATIBILITY ---
+if (typeof File === 'undefined') {
+    const { Blob } = require('node:buffer');
+    global.File = class extends Blob {
+        constructor(chunks, name, opts) {
+            super(chunks, opts);
+            this.name = name;
+            this.lastModified = opts?.lastModified || Date.now();
+        }
+    };
+}
+// -----------------------------------------------------
+
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const cheerio = require('cheerio');
 const { PORT } = require('./config');
 
-// Wrap the proxy import in a try-catch to catch native module errors
+// Safe load for proxyRequest
 let proxyRequest;
 try {
     proxyRequest = require('./src/lib/proxy-http').proxyRequest;
 } catch (e) {
-    console.error("FATAL ERROR: Failed to load proxy-http.js. This is usually due to node-libcurl failing to find system libraries.");
+    console.error("Native Module Error: proxy-http.js failed to load.");
     console.error(e);
 }
 
@@ -18,7 +31,7 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
-// Health check endpoint for Railway
+// Railway Health Check
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 app.use((req, res, next) => {
@@ -29,7 +42,7 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// MIME types for WASM
+// Serve WASM libraries
 app.use('/baremux', express.static(path.join(__dirname, 'baremux')));
 app.use('/epoxy', express.static(path.join(__dirname, 'epoxy')));
 app.use('/scram', express.static(path.join(__dirname, 'scram'), {
@@ -42,7 +55,6 @@ app.all('/proxy', async (req, res) => {
     let targetUrl = req.query.url;
     if (!targetUrl) return res.status(400).send('URL required');
     if (!proxyRequest) return res.status(500).send("Proxy engine failed to initialize.");
-    
     try {
         await proxyRequest(req, res, targetUrl);
     } catch (error) {
@@ -50,7 +62,6 @@ app.all('/proxy', async (req, res) => {
     }
 });
 
-// Extractor (using native fetch to avoid axios/undici crash)
 app.post('/extract', async (req, res) => {
     const { url } = req.body;
     try {
@@ -67,7 +78,21 @@ app.post('/extract', async (req, res) => {
     }
 });
 
-// Listen on 0.0.0.0
+app.post('/api/ai', async (req, res) => {
+    const { endpoint, apiKey, model, messages } = req.body;
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, messages })
+        });
+        const data = await response.json();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server online at http://0.0.0.0:${PORT}`);
+    console.log(`🚀 Yuff Browser Online: http://0.0.0.0:${PORT}`);
 });
