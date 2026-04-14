@@ -38,13 +38,13 @@ body { font-family: -apple-system, sans-serif; background: #f5f5f7; display: fle
 .setting-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .setting-group input, .setting-group select { padding: 10px; border-radius: 8px; background: var(--bg-main); color: white; border: 1px solid var(--border); }
 
-/* YOUR EXACT CSS for the EXTRACTOR */
+/* EXTRACTOR CSS */
 .container { max-width: 980px; margin: 0 auto; padding: 20px; }
 .header { text-align: center; margin-bottom: 24px; color: #1d1d1f; }
 .input-section { background: #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08); }
 .input-group { display: flex; gap: 12px; flex-direction: row; }
 .input-group input { flex: 1; padding: 14px 16px; border: 1.5px solid #d2d2d7; border-radius: 12px; font-size: 16px; }
-.btn { padding: 14px 24px; background: #007aff; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 500; }
+.btn { padding: 14px 24px; background: #007aff; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 500; width: 100%; }
 .player-section { background: #ffffff; padding: 16px; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-top: 20px; }
 .player-container iframe { width: 100%; height: 600px; border: none; background: #000; border-radius: 8px; }
 .error { background: #ff3b30; color: white; padding: 14px; border-radius: 12px; margin-bottom: 20px; }
