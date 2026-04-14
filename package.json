@@ -1,17 +1,17 @@
 {
-  "name": "proxit-browser-ai",
+  "name": "yuff-browser",
   "version": "1.0.0",
-  "description": "Server-side Iframe Proxy Browser with Tabs, AI, and Scramjet/Libcurl support",
+  "description": "Hybrid Proxy Browser with AI, Tabs, Libcurl, and Scramjet WASM",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test tests/proxy.test.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
+    "cookie-parser": "^1.4.6",
     "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
-    "cookie-parser": "^1.4.6"
+    "node-libcurl": "^3.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
