@@ -4,32 +4,46 @@ const cookieParser = require('cookie-parser');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { PORT } = require('./config');
-const { proxyRequest, getProxyOrigin, unwrapProxyUrl } = require('./src/lib/proxy-http');
+const { proxyRequest } = require('./src/lib/proxy-http');
 
 const app = express();
-app.use(express.static(path.join(__dirname, 'public')));
+
+// Middleware
 app.use(express.json());
 app.use(cookieParser());
-
-// Anti-detection headers applied globally
 app.use((req, res, next) => {
     res.setHeader('X-Frame-Options', 'ALLOWALL');
     res.setHeader('Content-Security-Policy', "frame-ancestors 'self' *;");
     next();
 });
 
-// Your Proxy Endpoint
+// Serve Public Files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve Client-Side Proxy Libraries & WASM (with correct MIME types)
+app.use('/baremux', express.static(path.join(__dirname, 'baremux')));
+app.use('/epoxy', express.static(path.join(__dirname, 'epoxy')));
+app.use('/scram', express.static(path.join(__dirname, 'scram'), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.wasm')) {
+            res.setHeader('Content-Type', 'application/wasm');
+        }
+    }
+}));
+
+// Core Server-Side Proxy Endpoint
 app.all('/proxy', async (req, res) => {
     let targetUrl = req.query.url;
     if (!targetUrl) return res.status(400).send('Invalid or missing URL parameter');
     try {
         await proxyRequest(req, res, targetUrl);
     } catch (error) {
+        console.error('Proxy error:', error);
         res.status(500).send(`<h2>Proxy Error</h2><p>${error.message}</p>`);
     }
 });
 
-// The Iframe Extractor Backend Endpoint (Called by app.js)
+// Extractor Backend Endpoint
 app.post('/extract', async (req, res) => {
     const { url } = req.body;
     try {
@@ -57,7 +71,7 @@ app.post('/extract', async (req, res) => {
     }
 });
 
-// Any AI API Passthrough
+// AI Passthrough Endpoint
 app.post('/api/ai', async (req, res) => {
     const { endpoint, apiKey, model, messages } = req.body;
     try {
@@ -70,4 +84,6 @@ app.post('/api/ai', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Railway Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 Yuff Browser Server running on port ${PORT}`);
+});
