@@ -1,7 +1,6 @@
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
-const axios = require('axios');
 const cheerio = require('cheerio');
 const { PORT } = require('./config');
 const { proxyRequest } = require('./src/lib/proxy-http');
@@ -43,23 +42,27 @@ app.all('/proxy', async (req, res) => {
     }
 });
 
-// Extractor Backend Endpoint
+// Extractor Backend Endpoint (USING NATIVE FETCH)
 app.post('/extract', async (req, res) => {
     const { url } = req.body;
     try {
-        const response = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const $ = cheerio.load(response.data);
-        const iframes =[];
+        const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!response.ok) {
+            throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+        }
+        const html = await response.text();
+        const $ = cheerio.load(html);
         
+        const iframes = [];
         $('iframe').each((i, el) => {
             if ($(el).attr('src')) {
                 iframes.push({ src: $(el).attr('src'), label: `Extracted Iframe ${i+1}` });
             }
         });
 
-        const links =[];
+        const links = [];
         $('a').each((i, el) => {
-            if ($(el).attr('href')) links.push({ url: $(el).attr('href'), title: $(el).text() });
+            if ($(el).attr('href')) links.push({ url: $(el).attr('href'), title: $(el).text().trim() });
         });
 
         if (iframes.length === 0) {
@@ -71,16 +74,29 @@ app.post('/extract', async (req, res) => {
     }
 });
 
-// AI Passthrough Endpoint
+// AI Passthrough Endpoint (USING NATIVE FETCH)
 app.post('/api/ai', async (req, res) => {
     const { endpoint, apiKey, model, messages } = req.body;
     try {
-        const aiReq = await axios.post(endpoint, { model, messages }, {
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${apiKey}`, 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({ model, messages })
         });
-        res.json(aiReq.data);
+
+        const data = await response.json();
+
+        if (!response.ok) {
+             // Forward the actual error from the AI API
+            return res.status(response.status).json(data);
+        }
+
+        res.json(data);
     } catch (err) {
-        res.status(500).json({ error: err.response ? err.response.data : err.message });
+        res.status(500).json({ error: { message: `AI Passthrough Error: ${err.message}` } });
     }
 });
 
