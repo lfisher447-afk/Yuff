@@ -2,7 +2,12 @@ const { DIRECT_RESOURCE_HOSTS } = require('../../config');
 const { rewriteLocationHeader, rewriteSrcsetValue, rewriteUrlValue } = require('./url-utils');
 
 function rewriteHtmlResourceUrls(html, baseUrl, proxyOrigin = '') {
-    const resourceAttributesByTag = { a: ['href'], area: ['href'], audio: ['src'], form: ['action'], iframe: ['src', 'srcdoc'], img: ['src', 'srcset'], input: ['src'], link: ['href'], script: ['src'], source: ['src', 'srcset'], track: ['src'], video: ['src', 'poster'] };
+    const resourceAttributesByTag = {
+        a: ['href'], area: ['href'], audio: ['src'], form: ['action'],
+        iframe: ['src', 'srcdoc'], img: ['src', 'srcset'], input: ['src'],
+        link: ['href'], script: ['src'], source: ['src', 'srcset'], track: ['src'], video: ['src', 'poster']
+    };
+
     const preservedBlocks =[];
     const protectedHtml = html.replace(/<(script|style|textarea|noscript)\b[\s\S]*?<\/\1>/gi, (block) => {
         const token = `__PROXIT_PRESERVED_BLOCK_${preservedBlocks.length}__`;
@@ -24,6 +29,7 @@ function rewriteHtmlResourceUrls(html, baseUrl, proxyOrigin = '') {
                 return `${attr}="${rewrittenValue}"`;
             });
         }
+
         rewrittenTag = rewrittenTag.replace(/\starget=["']_blank["']/gi, ' target="_self"');
         rewrittenTag = rewrittenTag.replace(/\sintegrity=["'][^"']*["']/gi, '');
         rewrittenTag = rewrittenTag.replace(/\scrossorigin=["'][^"']*["']/gi, '');
@@ -31,6 +37,7 @@ function rewriteHtmlResourceUrls(html, baseUrl, proxyOrigin = '') {
     });
 
     const restoredHtml = rewrittenHtml.replace(/__PROXIT_PRESERVED_BLOCK_(\d+)__/g, (match, index) => preservedBlocks[Number(index)] || match);
+
     return restoredHtml.replace(/<script\b[^>]*>/gi, (tag) => {
         return tag.replace(/\b(src)=(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i, (match, attr, doubleQuotedPath, singleQuotedPath, unquotedPath) => {
             const path = doubleQuotedPath ?? singleQuotedPath ?? unquotedPath ?? '';
@@ -53,8 +60,10 @@ function injectProxyClientShim(html, proxyOrigin) {
 (() => {
     if (window.__proxitShimInstalled) return;
     window.__proxitShimInstalled = true;
+
     const proxyOrigin = ${JSON.stringify(proxyOrigin)};
     const directResourceHosts = ${JSON.stringify(DIRECT_RESOURCE_HOSTS)};
+    
     if (typeof window.ready !== 'function') {
         window.ready = function(callback) {
             if (typeof callback !== 'function') return;
@@ -62,17 +71,86 @@ function injectProxyClientShim(html, proxyOrigin) {
             callback.call(document);
         };
     }
+
     const upstreamBase = (() => { const baseElement = document.querySelector('base[data-proxit-base]'); return baseElement ? baseElement.href : document.baseURI; })();
-    const notifyParentNavigation = (url) => { if (!window.parent || window.parent === window) return; try { window.parent.postMessage({ type: 'proxit:navigating', url: String(url || '') }, proxyOrigin || '*'); } catch {} };
-    const shouldBypass = (value) => { if (!value) return true; return (value.startsWith('data:') || value.startsWith('javascript:') || value.startsWith('mailto:') || value.startsWith('tel:') || value.startsWith('#')); };
-    const toAbsoluteUrl = (value) => { try { return new URL(value, upstreamBase).href; } catch { return value; } };
-    const shouldBypassProxyForAbsoluteUrl = (absoluteUrl) => { try { const url = new URL(absoluteUrl); const hostname = url.hostname.toLowerCase(); return directResourceHosts.some((directHost) => hostname === directHost || hostname.endsWith('.' + directHost)); } catch { return false; } };
-    const toProxyUrl = (value) => { if (shouldBypass(value)) return value; const absoluteUrl = toAbsoluteUrl(value); if (shouldBypassProxyForAbsoluteUrl(absoluteUrl)) return absoluteUrl; return proxyOrigin + '/proxy?url=' + encodeURIComponent(absoluteUrl); };
-    const shouldProxyRequest = (value) => { if (!value || shouldBypass(value)) return false; const absoluteUrl = toAbsoluteUrl(value); if (shouldBypassProxyForAbsoluteUrl(absoluteUrl)) return false; if (!/^https?:/i.test(absoluteUrl)) return false; if (absoluteUrl.startsWith(proxyOrigin + '/')) return false; return true; };
     
-    // (Abridged here to save space, but ALL your DOM/XHR rewriting logic runs perfectly via your script!)
+    const notifyParentNavigation = (url) => {
+        if (!window.parent || window.parent === window) return;
+        try { window.parent.postMessage({ type: 'proxit:navigating', url: String(url || '') }, proxyOrigin || '*'); } catch {}
+    };
+
+    const shouldBypass = (value) => {
+        if (!value) return true;
+        return (value.startsWith('data:') || value.startsWith('javascript:') || value.startsWith('mailto:') || value.startsWith('tel:') || value.startsWith('#'));
+    };
+
+    const toAbsoluteUrl = (value) => { try { return new URL(value, upstreamBase).href; } catch { return value; } };
+
+    const shouldBypassProxyForAbsoluteUrl = (absoluteUrl) => {
+        try {
+            const url = new URL(absoluteUrl);
+            const hostname = url.hostname.toLowerCase();
+            return directResourceHosts.some((directHost) => hostname === directHost || hostname.endsWith('.' + directHost));
+        } catch { return false; }
+    };
+
+    const toProxyUrl = (value) => {
+        if (shouldBypass(value)) return value;
+        const absoluteUrl = toAbsoluteUrl(value);
+        if (shouldBypassProxyForAbsoluteUrl(absoluteUrl)) return absoluteUrl;
+        return proxyOrigin + '/proxy?url=' + encodeURIComponent(absoluteUrl);
+    };
+
+    const shouldProxyRequest = (value) => {
+        if (!value || shouldBypass(value)) return false;
+        const absoluteUrl = toAbsoluteUrl(value);
+        if (shouldBypassProxyForAbsoluteUrl(absoluteUrl)) return false;
+        if (!/^https?:/i.test(absoluteUrl)) return false;
+        if (absoluteUrl.startsWith(proxyOrigin + '/')) return false;
+        return true;
+    };
+
+    window.open = function(url) {
+        if (url) {
+            const destinationUrl = toProxyUrl(url);
+            notifyParentNavigation(destinationUrl);
+            window.location.href = destinationUrl;
+        }
+        return window;
+    };
+
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest && event.target.closest('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (!href || shouldBypass(href)) return;
+        notifyParentNavigation(link.href || toProxyUrl(href));
+    }, true);
+
+    const originalFetch = window.fetch && window.fetch.bind(window);
+    if (originalFetch) {
+        window.fetch = function(input, init) {
+            if (typeof input === 'string') return originalFetch(shouldProxyRequest(input) ? toProxyUrl(input) : input, init);
+            if (input instanceof Request) {
+                const requestUrl = input.url;
+                if (!shouldProxyRequest(requestUrl)) return originalFetch(input, init);
+                return originalFetch(new Request(toProxyUrl(requestUrl), input), init);
+            }
+            return originalFetch(input, init);
+        };
+    }
+
+    const OriginalXHR = window.XMLHttpRequest;
+    if (OriginalXHR) {
+        const originalOpen = OriginalXHR.prototype.open;
+        OriginalXHR.prototype.open = function(method, url, ...rest) {
+            const proxiedUrl = shouldProxyRequest(url) ? toProxyUrl(url) : url;
+            return originalOpen.call(this, method, proxiedUrl, ...rest);
+        };
+    }
 })();
 </script>`;
+
     if (/<base\b[^>]*data-proxit-base[^>]*>/i.test(html)) return html.replace(/(<base\b[^>]*data-proxit-base[^>]*>)/i, `$1${shim}`);
     if (/<head[^>]*>/i.test(html)) return html.replace(/<head([^>]*)>/i, `<head$1>${shim}`);
     if (/<body[^>]*>/i.test(html)) return html.replace(/<body([^>]*)>/i, `<body$1>${shim}`);
