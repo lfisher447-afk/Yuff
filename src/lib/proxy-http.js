@@ -1,8 +1,15 @@
 const http = require('node:http');
 const https = require('node:https');
-const { Curl } = require('node-libcurl');
+
+// Safely load node-libcurl
+let Curl;
+try {
+    Curl = require('node-libcurl').Curl;
+} catch (e) {
+    console.warn("WARNING: node-libcurl could not be loaded. Falling back to standard proxy engine.");
+}
+
 const { getProxyOrigin } = require('./url-utils');
-const { debugLog } = require('./logging');
 const { injectProxyBaseTag, injectProxyClientShim, rewriteCssResourceUrls, rewriteHtmlResourceUrls, rewriteSetCookieHeader } = require('./content-rewriter');
 
 async function proxyRequest(req, res, targetUrl) {
@@ -12,13 +19,13 @@ async function proxyRequest(req, res, targetUrl) {
     const target = new URL(targetUrl);
     const proxyOrigin = getProxyOrigin(req);
 
-    // Engine: Libcurl (Highest Anti-Detection)
-    if (settings.engine === 'libcurl') {
+    // ENGINE: LIBCURL (Only if loaded successfully)
+    if (settings.engine === 'libcurl' && Curl) {
         const curl = new Curl();
         curl.setOpt('URL', target.href);
         curl.setOpt('FOLLOWLOCATION', true);
         curl.setOpt('SSL_VERIFYPEER', false);
-        curl.setOpt('USERAGENT', settings.spoof === 'high' ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' : 'Mozilla/5.0');
+        curl.setOpt('USERAGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
         
         curl.on('end', function (statusCode, data, headers) {
             let body = data;
@@ -34,29 +41,22 @@ async function proxyRequest(req, res, targetUrl) {
             res.status(statusCode).setHeader('Content-Type', contentType).send(body);
             this.close();
         });
-
-        curl.on('error', (err) => {
-            curl.close();
-            res.status(500).send(`Libcurl Error: ${err.message}`);
-        });
-
+        curl.on('error', (err) => { curl.close(); res.status(500).send(err.message); });
         curl.perform();
         return;
     }
 
-    // Engine: Standard Node HTTP
+    // ENGINE: STANDARD FALLBACK
+    const transport = target.protocol === 'https:' ? https : http;
     const options = {
         hostname: target.hostname,
         path: target.pathname + target.search,
         method: req.method,
-        headers: {
-            'User-Agent': settings.spoof === 'high' ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' : 'Mozilla/5.0'
-        }
+        headers: { 'User-Agent': 'Mozilla/5.0' }
     };
 
-    const transport = target.protocol === 'https:' ? https : http;
     const proxyReq = transport.request(options, (upstreamResponse) => {
-        let chunks =[];
+        let chunks = [];
         upstreamResponse.on('data', chunk => chunks.push(chunk));
         upstreamResponse.on('end', () => {
             let body = Buffer.concat(chunks);
@@ -68,21 +68,10 @@ async function proxyRequest(req, res, targetUrl) {
                 html = rewriteHtmlResourceUrls(html, target, proxyOrigin);
                 html = injectProxyClientShim(html, proxyOrigin);
                 body = Buffer.from(html, 'utf8');
-            } else if (contentType.includes('text/css')) {
-                const css = rewriteCssResourceUrls(body.toString('utf8'), target, proxyOrigin);
-                body = Buffer.from(css, 'utf8');
             }
-
-            res.status(upstreamResponse.statusCode);
-            res.setHeader('Content-Type', contentType);
-            if(upstreamResponse.headers['set-cookie']) {
-                res.setHeader('Set-Cookie', rewriteSetCookieHeader(upstreamResponse.headers['set-cookie']));
-            }
-            res.send(body);
+            res.status(upstreamResponse.statusCode).setHeader('Content-Type', contentType).send(body);
         });
     });
-
-    proxyReq.on('error', err => res.status(500).send(`Proxy Error: ${err.message}`));
     proxyReq.end();
 }
 
