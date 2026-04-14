@@ -1,17 +1,16 @@
-// --- YOUR EXACT AD BLOCKER & MONITOR (IIFE) ---
 const BlockMonitor = {
-    count: 0, maxEntries: 30,
+    count: 0,
     log: function(type, url, containerId) {
         try {
             const monitor = document.querySelector(`#${containerId} .blockMonitor`);
             const list = document.querySelector(`#${containerId} .blockList`);
             const counter = document.querySelector(`#${containerId} .blockCount`);
-            if (!monitor) return;
+            if (!monitor || !list) return;
             monitor.style.display = 'block';
             this.count++;
             counter.textContent = this.count;
             const entry = document.createElement('div');
-            entry.style.cssText = `margin-bottom: 6px; padding: 10px; background: #fff; border-left: 3px solid red;`;
+            entry.style.cssText = `margin-bottom: 6px; padding: 10px; background: #f5f5f7; border-left: 3px solid red;`;
             entry.innerHTML = `<strong>Blocked ${type}</strong>: ${url.substring(0, 50)}`;
             list.insertBefore(entry, list.firstChild);
         } catch (e) {}
@@ -24,23 +23,24 @@ const BlockMonitor = {
         BlockMonitor.log('popup', url || 'Unknown', app.activeTabId);
         return null;
     };
+    
     window.addEventListener('click', function(e) {
         if (e.isTrusted) {
             setTimeout(() => { if (window.opener) { BlockMonitor.log('popunder', 'Popunder', app.activeTabId); window.close(); } }, 100);
         }
     }, true);
     
-    // Custom Elements Blocker (From Settings)
+    // CUSTOM ELEMENTS BLOCKER via Settings
     const observer = new MutationObserver(function(mutations) {
         const settings = JSON.parse(localStorage.getItem('nexusSettings')) || {};
-        const customElements = settings.customElements ? settings.customElements.split(',').map(s=>s.trim()) : ['.ad-overlay', '.popup-ad'];
+        const customElements = settings.customElements ? settings.customElements.split(',').map(s=>s.trim()) : ['.ad-overlay'];
         
         mutations.forEach(function(mutation) {
             mutation.addedNodes.forEach(function(node) {
                 if (node.nodeType === 1) {
                     customElements.forEach(selector => {
                         if (node.matches && node.matches(selector)) {
-                            BlockMonitor.log('ad', `Overlay Removed: ${selector}`, app.activeTabId);
+                            BlockMonitor.log('element', `Deleted: ${selector}`, app.activeTabId);
                             node.remove();
                         }
                     });
@@ -51,9 +51,8 @@ const BlockMonitor = {
     observer.observe(document.body, { childList: true, subtree: true });
 })();
 
-// --- TABBED BROWSER & AI SYSTEM ---
 const app = {
-    tabs: [], activeTabId: null, tabCounter: 0, chatMessages:[],
+    tabs:[], activeTabId: null, tabCounter: 0, chatMessages:[],
 
     init() {
         this.loadSettings();
@@ -61,10 +60,19 @@ const app = {
         document.getElementById('globalUrlInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 const activeEl = document.querySelector(`#${this.activeTabId} .urlInput`);
-                activeEl.value = e.target.value;
-                this.extractStream(this.activeTabId);
+                if(activeEl) { activeEl.value = e.target.value; this.extractStream(this.activeTabId); }
             }
         });
+        
+        // Initialize WASM Proxies if selected
+        const settings = JSON.parse(localStorage.getItem('nexusSettings')) || {};
+        if(settings.engine === 'baremux' && window.BareMux) {
+            console.log("Initializing Baremux + Epoxy client connection...");
+            // Initialize your custom baremux workers here
+        } else if (settings.engine === 'scramjet' && window.Scramjet) {
+            console.log("Initializing Scramjet WASM Client...");
+            // Initialize scramjet.wasm bindings here
+        }
     },
 
     createTab() {
@@ -85,7 +93,6 @@ const app = {
         contentWrapper.appendChild(contentTemplate);
         document.getElementById('tabContents').appendChild(contentWrapper);
 
-        // Bind events for this specific tab (Your exact UI flow)
         const checkbox = contentWrapper.querySelector('.consentCheckbox');
         const analyzeBtn = contentWrapper.querySelector('.analyzeBtn');
         const streamSelect = contentWrapper.querySelector('.streamSelect');
@@ -115,7 +122,6 @@ const app = {
         else this.createTab();
     },
 
-    // --- YOUR EXACT CONSENT & EXTRACTION LOGIC (Adapted for Tabs) ---
     handleConsentChange(tabId, checked, btn) {
         const tab = this.tabs.find(t => t.id === tabId);
         if (checked) {
@@ -133,8 +139,7 @@ const app = {
         const url = container.querySelector('.urlInput').value;
         const loading = container.querySelector('.loading');
         const error = container.querySelector('.error');
-        const playerSection = container.querySelector('.playerSection');
-
+        
         if (!tab.consentGiven) { error.textContent = "You must agree to the terms."; error.style.display = 'block'; return; }
         if (!url) return;
 
@@ -142,7 +147,6 @@ const app = {
         error.style.display = 'none';
 
         try {
-            // Call the Node.js Server
             const response = await fetch('/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -156,7 +160,7 @@ const app = {
             document.getElementById(`ui_${tabId}`).querySelector('.title').textContent = data.title || 'Extracted';
             this.displayStream(tabId, data);
         } catch (err) {
-            error.textContent = `Failed to extract: ${err.message}`;
+            error.textContent = `Extraction Failed: ${err.message}`;
             error.style.display = 'block';
         } finally {
             loading.style.display = 'none';
@@ -191,12 +195,20 @@ const app = {
         const playerCont = container.querySelector('.playerContainer');
         playerCont.innerHTML = '';
         
+        const settings = JSON.parse(localStorage.getItem('nexusSettings')) || {};
         const iframe = document.createElement('iframe');
-        // CRITICAL: We route the extracted src through YOUR Server-Side Proxy System!
-        iframe.src = `/proxy?url=${encodeURIComponent(iframeData.src)}`;
+        
+        // Dynamically choose route based on engine preference
+        if (settings.engine === 'baremux' || settings.engine === 'scramjet') {
+            // Client-side WASM route (assuming your scramjet/baremux script intercepts this)
+            iframe.src = iframeData.src; 
+        } else {
+            // Standard Server-Side route (Node or Libcurl)
+            iframe.src = `/proxy?url=${encodeURIComponent(iframeData.src)}`;
+        }
+        
         iframe.allowFullscreen = true;
         iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms');
-        
         playerCont.appendChild(iframe);
     },
 
@@ -207,7 +219,6 @@ const app = {
         }
     },
 
-    // --- AI & SETTINGS LOGIC ---
     toggleSidebar() { document.getElementById('aiSidebar').classList.toggle('active'); },
     openSettings() { document.getElementById('settingsModal').classList.add('active'); },
 
@@ -240,22 +251,28 @@ const app = {
         const config = {
             engine: document.getElementById('setEngine').value,
             spoof: document.getElementById('setSpoof').value,
-            nodes: document.getElementById('setNodes').value,
             customElements: document.getElementById('setCustomElements').value,
             aiUrl: document.getElementById('setAiUrl').value,
             aiKey: document.getElementById('setAiKey').value
         };
         localStorage.setItem('nexusSettings', JSON.stringify(config));
-        document.cookie = `proxyConfig=${btoa(JSON.stringify(config))}; path=/`; // Sends Scramjet/Libcurl prefs to backend
+        document.cookie = `proxyConfig=${btoa(JSON.stringify(config))}; path=/`; 
         document.getElementById('settingsModal').classList.remove('active');
-        alert("Settings Saved! Custom Elements and Node routing updated.");
+        
+        // If they switched to a WASM engine, prompt reload to hook the workers properly
+        if(config.engine === 'scramjet' || config.engine === 'baremux') {
+            if(confirm("Engine updated to Client-Side WASM. The page must reload to hook the service workers. Reload now?")) {
+                window.location.reload();
+            }
+        } else {
+            alert("Settings Saved!");
+        }
     },
 
     loadSettings() {
         const config = JSON.parse(localStorage.getItem('nexusSettings')) || {};
         if(config.engine) document.getElementById('setEngine').value = config.engine;
         if(config.spoof) document.getElementById('setSpoof').value = config.spoof;
-        if(config.nodes) document.getElementById('setNodes').value = config.nodes;
         if(config.customElements) document.getElementById('setCustomElements').value = config.customElements;
         if(config.aiUrl) document.getElementById('setAiUrl').value = config.aiUrl;
         if(config.aiKey) document.getElementById('setAiKey').value = config.aiKey;
