@@ -83,7 +83,7 @@ function rewriteSrcsetValue(value, baseUrl, proxyOrigin = '') {
         const trimmed = c.trim();
         if (!trimmed) return c;
         const parts = trimmed.split(/\s+/);
-        return [rewriteUrlValue(parts[0], baseUrl, proxyOrigin), ...parts.slice(1)].join(' ');
+        return[rewriteUrlValue(parts[0], baseUrl, proxyOrigin), ...parts.slice(1)].join(' ');
     }).join(', ');
 }
 
